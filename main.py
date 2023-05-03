@@ -102,10 +102,29 @@ def place_order():
     order_id = db.orders.insert_one(order).inserted_id
     return jsonify({'order_id': str(order_id)})
 #########################################################################3
+'''
 @app.route('/orders/<name>', methods=['GET'])
 def get_order_history(name):
-    customer_orders = list(db.orders.find({'name': name}))
+    customer_orders = list(db.orders.find_one({'customer_name': name}))
     return jsonify({'customer_orders': customer_orders})
+'''
+@app.route('/orders/history', methods=['GET'])
+def get_order_history():
+    customer_name = request.json.get('customer_name')
+    if not customer_name:
+        return jsonify({'error': 'Customer name is required'}), 400
+    orders = db.orders.find({'customer_name': customer_name})
+    output = []
+    for order in orders:
+        output.append({
+            'id': str(order['_id']),
+            'customer_name': order['customer_name'],
+            'email_address': order['email_address'],
+            'shipping_address': order['shipping_address'],
+            'products': order['products'],
+            'status': order.get('status', 'pending')
+        })
+    return jsonify({'result': output})
 
 if __name__ == '__main__':
     app.run(debug=True)

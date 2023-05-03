@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>E-Commerce Store</title>
+</head>
+<body>
+	<h1>E-Commerce Store</h1>
+	<h2>Products</h2>
+	<table>
+		<thead>
+			<tr>
+				<th>Name</th>
+				<th>Description</th>
+				<th>Price</th>
+				<th>Stock Quantity</th>
+			</tr>
+		</thead>
+		<tbody>
+		{% for product in products %}
+			<tr>
+				<td>{{ product.name }}</td>
+				<td>{{ product.description }}</td>
+				<td>${{ product.price }}</td>
+				<td>{{ product.stock_quantity }}</td>
+			</tr>
+			<tr>
+				<td colspan="4"><hr></td>
+			</tr>
+		{% endfor %}
+		</tbody>
+	</table>
+</body>
+</html>

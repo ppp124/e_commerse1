@@ -1,11 +1,59 @@
 from flask import Flask, jsonify, request
 from pymongo import MongoClient
 from bson.objectid import ObjectId
-
+import json
 
 app = Flask(__name__)
 client = MongoClient('mongodb://localhost:27017/')
 db = client['ecommerce_db']
+
+
+################################################################################################################
+@app.route('/users', methods=['GET'])
+def get_users():
+    users = db.users.find()
+    result = []
+    for user in users:
+        item = {
+            'id': str(user['_id']),
+            'name': user['name'],
+            'email_id': user['email_id']
+        }
+        result.append(item)
+    return jsonify(result)
+
+@app.route('/users', methods=['POST'])
+def create_user():
+    user = {
+        'name': request.json['name'],
+        'email_id': request.json['email_id']
+    }
+    db.users.insert_one(user)
+    return jsonify({'message': 'User created successfully!'})
+
+@app.route('/users/<id>', methods=['GET'])
+def get_user(id):
+    user = db.users.find_one({'_id': ObjectId(id)})
+    if user:
+        item = {
+            'id': str(user['_id']),
+            'name': user['name'],
+            'email_id': user['email_id']
+        }
+        return jsonify(item)
+    else:
+        return jsonify({'error': 'User not found!'})
+
+@app.route('/users/<id>', methods=['PUT'])
+def update_user(id):
+    db.users.update_one({'_id': ObjectId(id)}, {'$set': request.json})
+    return jsonify({'message': 'User updated successfully!'})
+
+@app.route('/users/<id>', methods=['DELETE'])
+def delete_user(id):
+    db.users.delete_one({'_id': ObjectId(id)})
+    return jsonify({'message': 'User deleted successfully!'})
+
 
 ###########################################################################################################
 # Retrieve all products
@@ -209,15 +257,17 @@ def place_order():
     customer_name = request.json.get('customer_name')
     email_address = request.json.get('email_address')
     shipping_address = request.json.get('shipping_address')
-    products = request.json.get('products')
+    #products = request.json.get('products')
 
-    if not customer_name or not email_address or not shipping_address or not products:
+    if not customer_name or not email_address or not shipping_address:
         return jsonify({'error': 'Missing required fields'}), 400
 
     order_products = []
 
     product_id = input(f"Enter the ID of the product  that you want to order: ")
     stock_quantity = int(input(f"Enter the desired quantity for the product  "))
+    #product_id= request.json.get('product_id')
+    #stock_quantity= request.json.get('stock_quantity')
 
     db_product = db.products.find_one({'_id': ObjectId(product_id)})
     if not db_product:
@@ -340,7 +390,7 @@ def filter_products_by_price():
     min_price = float(request.json.get('min_price', 0))
     max_price = float(request.json.get('max_price', float('inf')))
     print(min_price, max_price)
-    print("hiiiiiiiiiiiiiiiiiiiiii")
+    #print("hiiiiiiiiiiiiiiiiiiiiii")
     filtered_products = []
     for product in db.products.find({'price': {'$gte': min_price, '$lte': max_price}}):
         filtered_products.append({
@@ -359,9 +409,10 @@ def filter_products_by_price():
 
 @app.route('/return', methods=['POST'])
 def return_product():
-    order_id = input(f"Enter the ID of the order  that you want to return: ")
-    quantity = eval(input(f"Enter the Quantity of the product  that you want to return: "))
     product_id = input(f"Enter the ID of the product  that you want to return: ")
+    quantity = eval(input(f"Enter the Quantity of the product  that you want to return: "))
+    order_id = input(f"Enter the ID of the order. ")
+
     if not order_id or not quantity:
         return jsonify({'error': 'Missing required fields'}), 400
 
@@ -381,6 +432,40 @@ def return_product():
 
     return jsonify({'message': f"Returned {quantity} units of product with ID '{product_id}'"}), 200
 
+####################################################################################################
+
+def serialize_objectid(obj):
+    if isinstance(obj, ObjectId):
+        return str(obj)
+    return obj
+
+@app.route('/return3', methods=['POST'])
+def return_order_products3():
+    order_id = request.json.get('order_id')
+
+    if not order_id:
+        return jsonify({'error': 'Missing required fields'}), 400
+
+    # Check if the order exists
+    order = db.orders.find_one({'_id': ObjectId(order_id)})
+    if not order:
+        return jsonify({'error': f"Order with ID '{order_id}' not found"}), 404
+
+    returned_products = []
+    for product in order['products']:
+        product_id = product['product_id']
+        quantity = product['quantity']
+
+        # Update the product stock quantity
+        db.products.update_one({'_id': ObjectId(product_id)}, {'$inc': {'stock_quantity': quantity}})
+
+        # Add returned product to list
+        returned_products.append({'product_id': serialize_objectid(product_id), 'quantity': quantity})
+
+    # Update order status to returned
+    db.orders.update_one({'_id': ObjectId(order_id)}, {'$set': {'status': 'returned'}})
+
+    return jsonify({'message': f"Returned products for order with ID '{order_id}'", 'returned_products': returned_products}), 200
 
 #####################################################################################################
 if __name__ == '__main__':
